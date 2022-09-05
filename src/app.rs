@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::min;
 use std::io::{Read, Write};
 use std::iter::zip;
 use std::thread::sleep;
@@ -155,7 +155,7 @@ impl App {
                 }
                 last_measurement = Some(Instant::now());
             }
-            let sleep_duration = max(60, 60 - now.elapsed().as_secs());
+            let sleep_duration = min(60, 60 - now.elapsed().as_secs());
             sleep(Duration::new(sleep_duration, 0));
         }
     }
