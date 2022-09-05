@@ -140,6 +140,7 @@ impl App {
                                     if attempt == max_attempts {
                                         continue 'tracker_loop;
                                     }
+                                    sleep(Duration::new(1, 0));
                                 }
                             }
                         }

@@ -24,7 +24,7 @@ impl SerialIO {
                 .stop_bits(serialport::StopBits::One)
                 .data_bits(serialport::DataBits::Eight)
                 .flow_control(serialport::FlowControl::None)
-                .timeout(Duration::new(1, 0));
+                .timeout(Duration::new(2, 0));
             if let Ok(p) = builder.open_native() {
                 // Remove any bytes already in the buffer of serial device
                 let _ = p.clear(serialport::ClearBuffer::All);
