@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::io::{Read, Write};
 use std::iter::zip;
 use std::thread::sleep;
@@ -11,7 +10,7 @@ use crate::protocol::{
 use crate::serial_io::SerialIO;
 use crate::solar_data::SolarData;
 
-const MEASUREMENT_INTERVAL_SEC: Duration = Duration::new(5 * 60, 0);
+const MEASUREMENT_INTERVAL: Duration = Duration::new(5 * 60, 0);
 
 #[derive(Debug)]
 pub enum AppError {
@@ -116,47 +115,42 @@ impl App {
     }
 
     pub fn run(&mut self) {
-        let mut last_measurement = None;
         loop {
-            let now = Instant::now();
+            let t0 = Instant::now();
             let request_sequences = Self::build_request_sequences(&self.trackers);
-            if last_measurement.is_none()
-                || now.duration_since(last_measurement.unwrap()) > MEASUREMENT_INTERVAL_SEC
+            'tracker_loop: for (tracker, request_sequence) in
+                zip(&self.trackers, &request_sequences)
             {
-                'tracker_loop: for (tracker, request_sequence) in
-                    zip(&self.trackers, &request_sequences)
-                {
-                    let mut data = SolarData::new(tracker.device_id, tracker.array_id);
-                    for &request in request_sequence.iter() {
-                        let max_attempts = 3;
-                        for attempt in 1..=max_attempts {
-                            self.serial_io.clear_buffers();
-                            let read_result =
-                                Self::read_into(&mut self.serial_io, &mut data, request);
-                            match read_result {
-                                Ok(_) => break,
-                                Err(e) => {
-                                    println!("E: {:?}", e);
-                                    if attempt == max_attempts {
-                                        continue 'tracker_loop;
-                                    }
-                                    sleep(Duration::new(1, 0));
+                let mut data = SolarData::new(tracker.device_id, tracker.array_id);
+                for &request in request_sequence.iter() {
+                    let max_attempts = 3;
+                    for attempt in 1..=max_attempts {
+                        self.serial_io.clear_buffers();
+                        let read_result =
+                            Self::read_into(&mut self.serial_io, &mut data, request);
+                        match read_result {
+                            Ok(_) => break,
+                            Err(e) => {
+                                println!("E: {:?}", e);
+                                if attempt == max_attempts {
+                                    continue 'tracker_loop;
                                 }
+                                sleep(Duration::new(1, 0));
                             }
                         }
                     }
-
-                    data.timestamp = SystemTime::now()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-                    println!("I: inserting {:?}", data);
-                    let _ = self.db_io.insert_solar_data(data);
                 }
-                last_measurement = Some(Instant::now());
+
+                data.timestamp = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                println!("I: inserting {:?}", data);
+                let _ = self.db_io.insert_solar_data(data);
             }
-            let sleep_duration = min(60, 60 - now.elapsed().as_secs());
-            sleep(Duration::new(sleep_duration, 0));
+
+            let sleep_duration = MEASUREMENT_INTERVAL - (Instant::now() - t0);
+            sleep(sleep_duration);
         }
     }
 
